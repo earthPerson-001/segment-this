@@ -1,3 +1,4 @@
+
 image:
   file: .gitpod.Dockerfile
 
@@ -15,3 +16,7 @@ ports:
     onOpen: ignore
   - port: 35900
     onOpen: ignore
+
+vscode:
+  extensions:
+    - ms-python.python
