@@ -1,6 +1,7 @@
 from sklearn.datasets import load_sample_images
 import tensorflow as tf
 from functools import partial
+import numpy
 
 from sklearn.datasets import fetch_openml
 
@@ -9,6 +10,30 @@ import matplotlib.pyplot as plt
 from keras.utils import to_categorical  # one-hot encode target column
 
 import sys
+
+import random
+
+import pathlib
+import os
+
+# paths
+src_dir = pathlib.Path(__file__).parents[1]
+models_dir = src_dir.parents[0].joinpath("models")
+checkpoints_path = src_dir.parents[0].joinpath("checkpoints")
+
+# specific checkpoint name
+checkpoint_name = "checkpoint_1.ckpt"
+checkpoint_path = checkpoints_path.joinpath(checkpoint_name)
+
+# creating the required directories paths
+paths_to_create = [models_dir, checkpoints_path]
+for dir in paths_to_create:
+    pathlib.Path.mkdir(dir, parents=True, exist_ok=True)
+
+# for loading saved models
+USE_SAVED_MODEL = True
+TRAIN_EVEN_IF_SAVED = False
+DISPLAY_IMAGES = True
 
 DefaultConv2D = partial(
     tf.keras.layers.Conv2D,
@@ -71,9 +96,11 @@ def start():
 
     data, target = (mnist.data, mnist.target)
 
-    # some_digit = data[0]
-    # plot_digit(some_digit)
-    # plt.show()
+    some_digit = data[0]
+    if DISPLAY_IMAGES:
+        plot_digit(some_digit)
+        print("Displaying the given image.")
+        plt.show()
 
     # compiling the model
     cnn_model = get_small_cnn_model()
@@ -81,6 +108,9 @@ def start():
         optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"]
     )
 
+    if USE_SAVED_MODEL:
+        cnn_model.load_weights(checkpoint_path)
+        
     # for changing the input shape
     model_input_shape = cnn_model.layers[0].input_shape
 
@@ -106,13 +136,49 @@ def start():
     categorical_y_train = to_categorical(y_train)
     categorical_y_test = to_categorical(y_test)
 
-    # training the model
-    cnn_model.fit(
-        reshaped_X_train,
-        categorical_y_train,
-        validation_data=(reshaped_X_test, categorical_y_test),
-        epochs=3,
-    )
+    if not USE_SAVED_MODEL or TRAIN_EVEN_IF_SAVED:
+
+        # callback for saving the checkpoints
+        callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
+                                                      save_weights_only=True,
+                                                      verbose=1)
+
+        # training the model
+        cnn_model.fit(
+            reshaped_X_train,
+            categorical_y_train,
+            validation_data=(reshaped_X_test, categorical_y_test),
+            epochs=3,
+            callbacks=[callback]
+        )
+
+        # saving the model
+        cnn_model.save(models_dir.joinpath("default_one"))
+
+    random_image = reshaped_X_test[int(
+        random.randint(0, len(reshaped_X_test) - 1))]
+
+    test_on_image(cnn_model, random_image)
+
+
+def test_on_image(model, image):
+
+    if DISPLAY_IMAGES:
+        print("Displaying the given image.")
+        # showing the image
+        plot_digit(image)
+        plt.show()
+
+    output = model.predict(numpy.array([image,]))
+    print(f"The model output: {output}")
+
+    max_value = None
+    for i, value in enumerate(output[0]):
+        if value == max(output[0]):
+            max_value = i
+
+    # printing the output
+    print(f"The model predicted: {max_value}")
 
 
 if __name__ == "__main__":
